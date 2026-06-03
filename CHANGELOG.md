@@ -2,6 +2,26 @@
 
 All notable changes to tmeet will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) convention.
 
+## [v1.0.6] - 2026-06-03
+
+### Added
+
+- **New `tshoot feedback` command** (`cmd/tshoot/feedback.go`): Lets the agent (or end user) report troubleshooting feedback to the server, closing the loop between CLI usage and product iteration.
+  - `--category` (required) — Feedback category, one of: `tool_not_found` / `tool_error` / `tool_inadequate` / `unexpected_result` / `suggestion`
+  - `--intent` (required) — Original intent of the agent (max 200 characters)
+  - `--actions-tried` — Actions the agent has already tried (max 500 characters)
+  - `--result` — Result or blocker of the tried actions (max 500 characters)
+  - `--tool-name` — Tool/command name involved in the feedback
+  - `--error-code` — Error code returned by the tool, if any
+- **New `CharacterLimit` string validation utility** (`internal/utils/string.go`): UTF-8 rune-count based length check; returns `InvalidArgsError` with the offending flag name, the configured limit, and the actual length when exceeded. Used by `tshoot feedback` to enforce the `--intent` / `--actions-tried` / `--result` length caps.
+- Unit tests for `CharacterLimit` covering ASCII, multi-byte (CJK), boundary, and over-limit cases (`internal/utils/string_test.go`).
+
+### Changed
+
+- **Error logging on failure paths**: `cmd/root.go` now logs `execute failed: %v` via `log.Errorf` whenever `rootCmd.Execute()` returns a non-nil error, and `internal/auth/auth.go` logs `refresh token failed: %v` before clearing the local config in `TmeetAuth.RefreshToken`. Combined with the file-based logging introduced in v1.0.4, these traces are now recoverable through `tmeet tshoot log`.
+- `cmd/tshoot/base.go` registers the new `feedback` subcommand alongside `log` under the `tshoot` group.
+- Updated `README.md` / `README_EN.md`, `skills/tmeet-skill/SKILL.md`, and `skills/tmeet-skill/references/tmeet-tshoot.md` with `tshoot feedback` usage, parameter tables, and category guidance.
+
 ## [v1.0.5] - 2026-05-16
 
 ### Added
