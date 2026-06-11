@@ -2,6 +2,56 @@
 
 All notable changes to tmeet will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) convention.
 
+## [v1.0.8] - 2026-06-11
+
+### Added
+
+- **New `contact` subcommand group** (`cmd/contact/`): Address-book lookup capabilities, primarily intended to resolve names ↔ `open_id` for the "meeting invitation" and "in-meeting call" scenarios.
+  - `contact search` (`cmd/contact/search.go`) — Search enterprise address-book members by username, with optional job-title / department filtering when the username matches too many people; when only a single member is matched, the response is trimmed to keep `open_id` only (via the new `output.WithContactSearchLogic` hook).
+    - `--username` (required) — Username to search
+    - `--job-title` (optional) — Job title filter when the username yields too many matches
+    - `--department-name` (optional) — Department filter when the username yields too many matches
+  - `contact lookup-by-phone` (`cmd/contact/lookup_by_phone.go`) — Batch-look up users by phone number; up to 50 numbers per call; each number is pre-validated by `utils.ValidatePhone` before the request is sent.
+    - `--phones` (required) — Phone-number list, comma-separated or repeat the flag, max 50
+  - `contact lookup-by-email` (`cmd/contact/lookup_by_email.go`) — Batch-look up users by email address; up to 50 emails per call; each email is pre-validated by `utils.ValidateEmail` before the request is sent.
+    - `--emails` (required) — Email list, comma-separated or repeat the flag, max 50
+- **New `control` subcommand group** (`cmd/control/`): In-meeting real-time control capabilities.
+  - `control call` (`cmd/control/call.go`) — In-meeting batch call to bring members into the meeting, up to 20 members per call. Classified as a **write operation** and listed in the SKILL dangerous-operations table.
+    - `--meeting-id` (required) — Meeting ID
+    - `--users` (required) — Member `open_id` list to call
+  - `control kick` (`cmd/control/kick.go`) — Kick members out of an ongoing meeting, supporting three identity types (regular member / SIP / PSTN), capped at 20 in total per call. Classified as a **write operation**, listed in the SKILL dangerous-operations table, and SKILL further enforces a hard rule that the kick targets **must** come from `report participants` and **must not** come from any `contact` lookup result.
+    - `--meeting-id` (required) — Meeting ID
+    - `--allow-rejoin` (optional) — Allow kicked members to re-join
+    - `--users` / `--sip-users` / `--pstn-users` (at least one required) — Map respectively to regular members' `open_id`, SIP devices' `ms_open_id` (`instanceid=9`), and PSTN devices' `ms_open_id` (`instanceid=0`)
+- **New invitee-management subcommands under `meeting`** (`cmd/meeting/`): Building on the existing `invitees-list` from v1.0.7, this release adds incremental add / remove / full-replace capabilities.
+  - `meeting invitees-add` (`cmd/meeting/invitees_add.go`) — Append invitees to an existing meeting.
+  - `meeting invitees-remove` (`cmd/meeting/invitess_remove.go`) — Remove specified invitees from an existing meeting. Classified as a **write operation** and listed in the SKILL dangerous-operations table.
+  - `meeting invitees-replace` (`cmd/meeting/invitees_replace.go`) — Replace the meeting's invitee list with a new one; an empty list clears all invitees. Classified as a **write operation** and listed in the SKILL dangerous-operations table.
+  - All three share `--meeting-id` (required) and `--invitees` (the `open_id` list to apply, comma-separated or repeat the flag, max 100); `--invitees` is required for `invitees-add` / `invitees-remove` and optional (empty meaning "clear all") for `invitees-replace`.
+- **New shared user-list packagers for invitee / in-meeting-control commands** (`internal/cmdutil/users_help.go`): Extracted three reusable helpers — `PackageApiInviteesUsers` (invitees, capped by `InviteesListMax = 100`), `PackageMeetingControlUsers` (regular members, `open_id`, `to_operator_id_type=2`), and `PackageMeetingControlSpecialUsers` (SIP / PSTN, `ms_open_id`, `to_operator_id_type=4` plus `instanceid`) — that uniformly handle dedup, empty-value validation, and upper-bound checks. The constant `MeetingControlUsersListMax = 20` is also defined here.
+- **New phone / email format validation utilities** (`internal/utils/validate.go`):
+  - `ValidatePhone` — 11-digit phone-number regex check (`^1[3-9]\d{9}$`).
+  - `ValidateEmail` — Total length ≤ 100; must contain `@` with non-empty local / domain parts; rejects quoted local part, consecutive dots, and IP-address domains; finalizes with a regex format check.
+  - `SplitAndTrim` — Generic "split-by-comma + trim + drop empty" helper.
+  - These helpers are wired in as pre-call validators for `cmd/contact/lookup_by_phone.go` / `cmd/contact/lookup_by_email.go`.
+  - Companion unit tests in `internal/utils/validate_test.go` cover valid, invalid, and boundary cases for both formats.
+- **New `output.WithContactSearchLogic` output option** (`internal/output/options.go`): Applied to `contact search` responses; when the `users` array contains exactly one entry, only the `open_id` field is preserved, avoiding leakage of unnecessary personal information to the agent (mirroring the SKILL constraint that the address book is not a general-purpose people-info lookup).
+- **New API Schema identifiers** (`internal/cmdutil/api_schema.go`): Added the ApiCmd constants `meeting_invite_add` / `meeting_invite_remove` / `meeting_invite_replace` / `contact_search` / `contact_lookup_by_phone` / `contact_lookup_by_email` / `control_call` / `control_kick`, so the new commands can plug into the v1.0.5 `--compact` and middleware pipeline.
+
+### Changed
+
+- **Root command registers the `contact` and `control` subcommand groups** (`cmd/root.go`): `contact.NewBaseCmd` and `control.NewBaseCmd` are added between the existing `auth` / `meeting` / `report` / `record` / `tshoot` registrations.
+- **SKILL bumped to 1.0.4** (`skills/tmeet-skill/SKILL.md`):
+  - Top-level `description` now mentions the "address book" and "in-meeting control" capabilities.
+  - The command tree is updated with `meeting invitees-add/remove/replace`, the new `contact` group, and the new `control` group.
+  - The dangerous-operations table now includes `meeting invitees-remove`, `meeting invitees-replace`, `control call`, and `control kick`, all requiring user confirmation before execution.
+  - Added a **"`contact search` is restricted to specific scenarios"** rule: it may only be used for meeting invitations, in-meeting calls, and back-filling invitee names — not as a general-purpose people-info lookup.
+  - Added a **"hard rule on kick-target source"**: the `open_id` / `ms_open_id` passed to `control kick` **must** come from `report participants`, and **must not** come from any `contact` lookup result.
+  - Added a **"multiple results require user confirmation"** rule: when commands such as `contact search` return more than one candidate, the model must list them and let the user choose, rather than picking one on its own.
+  - Added a **"reply template for meeting-invitee mutations"**: after `meeting invitees-add/remove/replace` succeeds, the reply must follow a strict "topic / time / meeting code / join URL / current invitees" template, and the invitee list must show **names** rather than `open_id`s, looking them up via `meeting invitees-list` + `contact search` when needed.
+- **SKILL reference docs added / synced** (`skills/tmeet-skill/references/`): Added `tmeet-contact.md` and `tmeet-control.md`; `tmeet-meeting.md` is updated with parameter tables and usage notes for `invitees-add` / `invitees-remove` / `invitees-replace`.
+- **README sync** (`README.md` / `README_EN.md`): Command tree and command reference updated with `meeting invitees-add/remove/replace`, `contact search/lookup-by-phone/lookup-by-email`, and `control call/kick`, including the corresponding parameter descriptions and examples.
+
 ## [v1.0.7] - 2026-06-10
 
 ### Added
