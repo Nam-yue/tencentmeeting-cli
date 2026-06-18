@@ -2,6 +2,22 @@
 
 All notable changes to tmeet will be documented in this file, following the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) convention.
 
+## [v1.0.10] - 2026-06-19
+
+### Added
+
+- **`meeting create` / `meeting update` now expose four advanced meeting-settings flags** (`cmd/meeting/create.go`, `cmd/meeting/update.go`): `--water-mark-type` (text watermark, `0`-single row / `1`-double row / `2`-off, default `2`; when not `2`, `allow_screen_shared_watermark` is set in tandem), `--audio-watermark`, `--auto-record-type` (`none` / `local` / `cloud`), and `--auto-asr`. These fields are only written to the request `settings` when `cmd.Flags().Changed(...)` reports they were explicitly provided, so unspecified flags will not silently override the enterprise defaults; explicitly turning a bool flag off requires the `=` form, e.g. `--audio-watermark=false`.
+- **Hints output channel for enterprise-locked settings** (`internal/cmdutil/hints/`, `internal/cmdutil/meeting.go`, `internal/output/`): Introduced the `HintProvider` interface and `output.WithHints(fn)` option, and added a top-level `hints` field to `formatOutput`. `meeting create` / `meeting update` plug into this channel: when the response `settings.corp_lock_mask` is non-zero, the output emits messages like `Enterprise has locked the [Text Watermark] setting`, covering text watermark / audio watermark / auto recording / auto speech recognition. Both top-level `settings` and `meeting_info_list[].settings` response shapes are supported, with duplicate entries deduplicated.
+- **`corp_lock_mask` bitmask enum** (`internal/utils/enumerate/corp_lock_mask.go`): Defines four constants (bit0~bit3) with `CorpLockMaskName` (single bit → label) and `CorpLockMaskNames` (combined mask → labels in canonical bit order). Companion unit tests in `corp_lock_mask_test.go`.
+- **`meeting_join_type` / `show_all_sub_meetings` enum mappings** (`internal/utils/enumerate/`): `1=all` / `2=invited` / `3=internal` and `0=no` / `1=yes`. The new `MeetingJoinTypeConverter` / `ShowAllSubMeetingsConverter` are wired into `meeting list` (for `only_user_join_type`, `is_show_all_sub_meetings`) and into `meeting create` / `meeting update` outputs (for `only_user_join_type`).
+- **New `utils.DeleteFields` JSON blacklist utility and `output.WithFilterFields` output option** (`internal/utils/filter.go`, `internal/output/options.go`): The dual of the v1.0.5 `KeepFields` whitelist — supports both field-name mode and dot-path mode (arrays auto-expand) and uses `maxDepth` to bound recursion; `WithFilterFields` exposes it to the output layer with `maxDepth=10`.
+
+### Changed
+
+- **`meeting update` help-text fix** (`cmd/meeting/update.go`): Corrected the `--recurring-type` help text from `1-weekday` to `1-weekdays`, aligning it with `meeting create` and the actual semantics.
+- **README and SKILL references synced for the new advanced meeting-settings flags** (`README.md` / `README_EN.md` / `skills/tmeet-skill/references/tmeet-meeting.md`): Parameter tables and examples for `--water-mark-type` / `--audio-watermark` / `--auto-record-type` / `--auto-asr` added to the `meeting create` / `meeting update` sections, with two notes called out: (1) personal vs. enterprise (organization) accounts behave differently depending on whether the enterprise has set the option to "forced"; (2) explicitly turning a bool flag off requires the `=false` form.
+- **SKILL bumped to 1.0.6** (`skills/tmeet-skill/SKILL.md`).
+
 ## [v1.0.9] - 2026-06-12
 
 ### Added
