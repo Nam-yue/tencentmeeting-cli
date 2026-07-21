@@ -15,7 +15,8 @@ TARGETS := \
 	darwin/arm64/macOS-AppleSilicon \
 	linux/amd64/Linux-x86_64 \
 	linux/arm64/Linux-ARM64 \
-	windows/amd64/Windows-x86_64
+	windows/amd64/Windows-x86_64 \
+	openharmony/arm64/OpenHarmony-ARM64
 
 # ── 默认目标 ──────────────────────────────────────────────────────────────────
 .PHONY: clean build sync-version

@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build !windows && !openharmony
 
 // filecheck_unix.go provides security checks before reading sensitive files such as .enc (Linux/macOS),
 // preventing symlink attacks and cross-user file replacement.

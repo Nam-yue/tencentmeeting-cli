@@ -66,8 +66,8 @@ if (!fs.existsSync(binaryPath)) {
     process.exit(1);
 }
 
-// 确保可执行权限（Windows 不需要）
-if (platform !== "win32") {
+// 确保可执行权限（Windows和 Openharmony不需要）
+if (platform !== "win32" || platform === "openharmony") {
     fs.chmodSync(binaryPath, 0o755);
 }
 

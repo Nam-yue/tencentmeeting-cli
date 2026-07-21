@@ -24,6 +24,7 @@ TARGETS=(
   "linux/amd64/Linux-x86_64"
   "linux/arm64/Linux-ARM64"
   "windows/amd64/Windows-x86_64"
+  "openharmony/arm64/OpenHarmony-ARM64"
 )
 
 # ── 清理并创建输出目录 ────────────────────────────────────────────────────────
